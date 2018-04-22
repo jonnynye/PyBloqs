@@ -13,9 +13,9 @@ from pybloqs.block.base import BaseBlock
 from pybloqs.block.convenience import add_block_types
 from pybloqs.util import cfg_to_css_string
 
-from bokeh.resources import INLINE
-from bokeh.embed import file_html
+from bokeh.resources import Resources
 from bokeh.plotting.figure import Figure as BokehFigure
+from bokeh.embed.standalone import components
 
 try:
     from cStringIO import StringIO
@@ -221,6 +221,7 @@ class PlotlyPlotBlock(BaseBlock):
     def _write_contents(self, container, *args, **kwargs):
         container.append(parse(self._contents))
 
+
 class BokehPlotBlock(BaseBlock):
 
     def __init__(self, contents, **kwargs):
@@ -238,7 +239,8 @@ class BokehPlotBlock(BaseBlock):
         if not isinstance(contents, BokehFigure):
             raise ValueError("Expected bokeh.plotting.figure.Figure type but got %s", type(contents))
 
-        self._contents = file_html(contents, INLINE, "test")
+        script, div = components(contents)
+        self._contents = Resources().render() + script + div
 
     def _write_contents(self, container, *args, **kwargs):
         container.append(parse(self._contents))
