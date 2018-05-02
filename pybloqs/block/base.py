@@ -80,7 +80,7 @@ class BaseBlock(object):
         self._anchor = anchor
         self._id = str(uuid.uuid4())
 
-    def render_html(self, pretty=True, static_output=False, header_block=None, footer_block=None, pdf_page_size="A4"):
+    def render_html(self, pretty=True, static_output=False, header_block=None, footer_block=None):
         """Returns html output of the block
         :param pretty: Toggles pretty printing of the resulting HTML. Not applicable for non-HTML output.
         :return html-code of the block
@@ -168,10 +168,11 @@ class BaseBlock(object):
         is_html = "htm" in fmt
 
         if is_html:
-            content = self.render_html(static_output=False, header_block=header_block, footer_block=footer_block)
+            content = self.render_html(static_output=False, header_block=header_block, footer_block=footer_block,
+                                       pretty=pretty)
             html_filename = filename
         else:
-            content = self.render_html(static_output=True, pdf_page_size=pdf_page_size)
+            content = self.render_html(static_output=True, pdf_page_size=pdf_page_size, pretty=pretty)
             name = str_base(abs(hash(self._id))) + ".html"
             html_filename = os.path.join(tempdir, name)
 
@@ -265,7 +266,7 @@ class BaseBlock(object):
         return path
 
     def email(self, title="", recipients=(user_config["user_email_address"],),
-              footer_text=None, header_block=None, footer_block=None,
+              header_block=None, footer_block=None,
               from_address=None, cc=None, bcc=None, attachments=None,
               convert_to_ascii=True, **kwargs):
         """
@@ -282,21 +283,21 @@ class BaseBlock(object):
                     - JPG
         :param body_block: The block to use as the email body. The default behavior is
                           to use the current block.
-        :param footer_text: string to be used in place of the default footer text
         :param from_address: sender of the message. Defaults to user name.
             Can be overwritten in .pybloqs.cfg with yaml format: 'user_email_address: a@b.com'
         :param cc: cc recipient
         :param bcc: bcc recipient
         :param convert_to_ascii: bool to control convertion of html email to ascii or to leave in current format
-        :param kwargs: Optional arguments to pass to `Block.save()`
+        :param kwargs: Optional arguments to pass to `Block.render_html()`
         """
         if from_address is None:
             from_address = user_config["user_email_address"]
 
         # The email body needs to be static without any dynamic elements.
-        email_html = self.render_html(header_block=header_block, footer_block=footer_block)
+        email_html = self.render_html(header_block=header_block, footer_block=footer_block, **kwargs)
 
-        send_html_report(email_html, recipients, subject=title, attachments=attachments, From=from_address, Cc=cc, Bcc=bcc, convert_to_ascii=convert_to_ascii)
+        send_html_report(email_html, recipients, subject=title, attachments=attachments,
+                         From=from_address, Cc=cc, Bcc=bcc, convert_to_ascii=convert_to_ascii)
 
     def to_static(self):
         return self._visit(lambda block: block._to_static())

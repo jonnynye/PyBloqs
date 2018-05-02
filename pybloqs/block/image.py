@@ -5,23 +5,24 @@ import matplotlib.pyplot as plt
 
 from matplotlib.artist import Artist
 from matplotlib.figure import Figure
-from plotly.graph_objs import Figure as PlotlyFigure
-from plotly.offline import plot as plotlyplot
 
 from pybloqs.html import append_to, parse
 from pybloqs.block.base import BaseBlock
 from pybloqs.block.convenience import add_block_types
 from pybloqs.util import cfg_to_css_string
-
-from bokeh.resources import Resources
-from bokeh.plotting.figure import Figure as BokehFigure
-from bokeh.embed.standalone import components
+from pybloqs.static import JScript, Css
 
 try:
     from cStringIO import StringIO
 except ImportError:
     from six import StringIO
 
+
+# highcharts_exporting_csv_jscript = JScript("export-csv")
+# highcharts_pybloqs_jscript = JScript("highcharts-pybloqs")
+#
+# register_interactive(highstock_jscript,
+#                      highcharts_more_jscript,
 
 _MIME_TYPES = {
     "png": "png",
@@ -211,12 +212,18 @@ class PlotlyPlotBlock(BaseBlock):
                        It is also useful in case a styling parameter name clashes with a standard
                        block parameter.
         """
+        # Import are local so we do not need to install Plotly when it is not used
+        from plotly.graph_objs import Figure as PlotlyFigure
+        import plotly.offline as po
+
+        self.resource_deps = [JScript('plotly', script_string=po.offline.get_plotlyjs())]
+
         super(PlotlyPlotBlock, self).__init__(**kwargs)
 
         if not isinstance(contents, PlotlyFigure):
             raise ValueError("Expected plotly.graph_objs.graph_objs.Figure type but got %s", type(contents))
 
-        self._contents = plotlyplot(contents, include_plotlyjs=True, output_type='div')
+        self._contents = po.plot(contents, include_plotlyjs=True, output_type='div')
 
     def _write_contents(self, container, *args, **kwargs):
         container.append(parse(self._contents))
@@ -234,17 +241,36 @@ class BokehPlotBlock(BaseBlock):
                        It is also useful in case a styling parameter name clashes with a standard
                        block parameter.
         """
+        # Import are local so we do not need to install Bokeh when it is not used
+        from bokeh.resources import CSSResources, JSResources
+        from bokeh.plotting.figure import Figure as BokehFigure
+        from bokeh.embed.standalone import components
+
+        self.resource_deps = [JScript(script_string=s) for s in JSResources().js_raw]
+        self.resource_deps += [Css(css_string=s) for s in CSSResources().css_raw]
+
         super(BokehPlotBlock, self).__init__(**kwargs)
 
         if not isinstance(contents, BokehFigure):
             raise ValueError("Expected bokeh.plotting.figure.Figure type but got %s", type(contents))
 
         script, div = components(contents)
-        self._contents = Resources().render() + script + div
+        self._contents = script + div
 
     def _write_contents(self, container, *args, **kwargs):
         container.append(parse(self._contents))
 
+
 add_block_types(Artist, PlotBlock)
-add_block_types(PlotlyFigure, PlotlyPlotBlock)
-add_block_types(BokehFigure, BokehPlotBlock)
+# If Plotly or Bokeh are not installed, do not fail, just skip registration
+try:
+    from plotly.graph_objs import Figure as PlotlyFigure
+    add_block_types(PlotlyFigure, PlotlyPlotBlock)
+except ImportError:
+    pass
+
+try:
+    from bokeh.plotting.figure import Figure as BokehFigure
+    add_block_types(BokehFigure, BokehPlotBlock)
+except ImportError:
+    pass

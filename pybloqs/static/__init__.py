@@ -47,37 +47,46 @@ class JScript(Resource):
     """
     Definition for external JS script dependencies.
     """
-    # global flag to turn off script enconding/compression accross the board
+    # global flag to turn off script encoding/compression across the board
     global_encode = True
 
-    def __init__(self, name, encode=True):
+    def __init__(self, name=None, encode=True, script_string=None):
         """
         An javascript dependency definition.
 
         :param name: Canonical name of the script
         :param encode: Whether to compress and base64 encode the script.
         """
+        if name is None and script_string is None:
+            raise ValueError('Please specify either resource name or script_string')
         super(JScript, self).__init__(name, ".js")
         self._encode = encode
-        self._sentinel_var_name = "_pybloqs_load_sentinel_%s" % name.replace("-", "_")
+        self._script_string = script_string
 
     def write(self, parent=None):
         stream = StringIO()
 
-        # Write out init condition
-        stream.write("if(typeof(%s) == 'undefined'){" % self._sentinel_var_name)
+        if self._script_string is None:
+            # Write out init condition
+            _sentinel_var_name = "_pybloqs_load_sentinel_{}".format(self._name.replace("-", "_"))
+            stream.write("if(typeof({}) == 'undefined'){{".format(_sentinel_var_name))
 
-        with open(self._local_path, "rb") as f:
-            if self._encode:
-                self.write_compressed(stream, f.read())
-            else:
-                stream.write(f.read())
+            with open(self._local_path, "rb") as f:
+                if self._encode:
+                    self.write_compressed(stream, f.read())
+                else:
+                    stream.write(f.read())
 
-        stream.write("%s = true;" % self._sentinel_var_name)
+            stream.write("{} = true;".format(_sentinel_var_name))
 
-        stream.write("}")
+            stream.write("}")
 
-        return js_elem(parent, stream.getvalue())
+            self._script_string = stream.getvalue()
+        elif self._encode:
+            self.write_compressed(stream, self._script_string)
+            self._script_string = stream.getvalue()
+
+        return js_elem(parent, self._script_string)
 
     @classmethod
     def write_compressed(cls, stream, data):
@@ -90,8 +99,11 @@ class JScript(Resource):
 
 
 class Css(Resource):
-    def __init__(self, name, tag_id=None):
+    def __init__(self, name=None, tag_id=None,  css_string=None):
         super(Css, self).__init__(name, ".css")
+        if name is None and css_string is None:
+            raise ValueError('Please specify either resource name or script_string')
+        self._css_string = css_string
         self._tag_id = tag_id
 
     def write(self, parent=None):
@@ -105,8 +117,10 @@ class Css(Resource):
         if self._tag_id is not None:
             el["id"] = self._tag_id
 
-        with open(self._local_path, "rb") as f:
-            el.string = f.read()
+        if self._css_string is None:
+            with open(self._local_path, "rb") as f:
+                self._css_string = f.read()
+        el.string = self._css_string
 
         return el
 
@@ -132,7 +146,7 @@ class DependencyTracker(object):
         return iter(self._deps)
 
 
-#JS deflation script and the reporting core functionality is always registered
+# JS deflation script and the reporting core functionality is always registered
 script_block_core = JScript("block-core", encode=False)
 script_inflate = JScript("jsinflate", encode=False)
 
